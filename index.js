@@ -32,41 +32,25 @@ function userValidation(req, res, next) {
 }
 
 function kidneyInputValidation(req, res, next) {
-    const kidneyData = req.body;
-    const noOfKidneys = kidneyData.noOfKidneys;
-    const phValue = kidneyData.phValue;
+    const kidneySchema = zod.object( {
+        noOfKidneys : zod.number('noOfKidneys is missing')
+        .min(2, 'The noOfKidneys can not be less than 2')
+        .max(2, 'The noOfKidneys can not be more than be 2'),
+        phValue : zod.array(zod.number()
+        .min(4, 'phValue should be between 4 and 8')
+        .max(8, 'phValue should be between 4 and 8'))
+        .length(2, 'phValue should have two values')
+    });
 
-    if(!noOfKidneys) {
-        const err = new Error('No of kidneys is missing');
-        err.status = 400;
-        console.log(err.status+"  "+err.message);
+    const kidneyResult = kidneySchema.safeParse(req.body);
+    console.log(kidneyResult);
+    if(!kidneyResult.success) {
+        const errorMessages = kidneyResult.error.issues.map((issue) => issue.message);
+        const err = createError('Validation failed', 400);
+        err.details = errorMessages;
         return next(err);
     }
-    if(noOfKidneys != 2){
-        const err = new Error('No of kidneys should be 2');
-        err.status = 400;
-        console.log(err.status+"  "+err.message);
-        return next(err);
-    }
-        
-    if(!phValue) {
-        const err = new Error('phValue is missing');
-        err.status = 400;
-        console.log(err.status+"  "+err.message);
-        return next(err);
-    }
-    if(phValue.length != 2) {
-        const err = new Error('phValue is missing some information');
-        err.status = 400;
-        console.log(err.status+"  "+err.message);
-        return next(err);
-    }
-    if(noOfKidneys == 2 && (phValue[0] < 4 || phValue[0] > 8 || phValue[1] < 4 || phValue[1] > 8)) {
-        const err = new Error('phValue should be between 4 and 8');
-        err.status = 400;
-        console.log(err.status+"  "+err.message);
-        return next(err);
-    }
+
     return next();
 }
 
@@ -86,7 +70,6 @@ function heartInputValidation(req, res, next) {
     req.validatedHeartData = heartResult.data;
     return next ();
 }
-
 
 app.use(userValidation);
 

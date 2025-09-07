@@ -17,12 +17,26 @@ function createError (message, status) {
 }
 
 function userValidation(req, res, next) {
-    const username = req.headers['user'];
-    const password = req.headers['password'];
-    if(!username || !password) {
-        const err = createError('Username or password is missing', 400);
+    const userSchema = zod.string('Username should be string')
+    .min(1, 'Username is missing');
+    const passwordSchema = zod.string('Password should be string')
+    .min(3, 'Password is missing');
+    const userResult = userSchema.safeParse(req.headers['user']);
+    const passwordResult = passwordSchema.safeParse(req.headers['password']);
+    if(!userResult.success) {
+        const errorMessages = userResult.error.issues.map((issue) => issue.message);
+        const err = createError('Validation failed', 400);
+        err.details = errorMessages;
         return next(err);
     }
+    if(!passwordResult.success) {
+        const errorMessages = passwordResult.error.issues.map((issue) => issue.message);
+        const err = createError('Validation failed', 400);
+        err.details = errorMessages;
+        return next(err);
+    }
+    const username = userResult.data;
+    const password = passwordResult.data;
 
     if(username != 'admin' || password != 'admin') {
         const err = createError('User not authorized', 401);
@@ -56,8 +70,12 @@ function kidneyInputValidation(req, res, next) {
 
 function heartInputValidation(req, res, next) {
     const heartSchema = zod.object( {
-        bpm : zod.number('bpm input is missing').min(60, 'The bpm input should be between 60 and 100').max(100, 'The bpm input should be between 60 and 100'),
-        heartRate : zod.number('hearRate is missing').min(30, 'The heartRate should be between 30 and 100').max(100, 'The heartRate should be between 30 and 100')
+        bpm : zod.number('bpm input is missing')
+        .min(60, 'The bpm input should be between 60 and 100')
+        .max(100, 'The bpm input should be between 60 and 100'),
+        heartRate : zod.number('hearRate is missing')
+        .min(30, 'The heartRate should be between 30 and 100')
+        .max(100, 'The heartRate should be between 30 and 100')
     });
     const heartResult = heartSchema.safeParse(req.body);
     console.log(heartResult);
@@ -112,9 +130,7 @@ app.use((err, req, res, next) => {
         status : 'failed',
         details : err.details || []
     });
-}
-    
-)
+});
 
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);

@@ -16,27 +16,25 @@ function createError (message, status) {
     return err;
 }
 
-function userValidation(req, res, next) {
-    const userSchema = zod.string('Username should be string')
-    .min(1, 'Username is missing');
-    const passwordSchema = zod.string('Password should be string')
-    .min(3, 'Password is missing');
-    const userResult = userSchema.safeParse(req.headers['user']);
-    const passwordResult = passwordSchema.safeParse(req.headers['password']);
-    if(!userResult.success) {
-        const errorMessages = userResult.error.issues.map((issue) => issue.message);
-        const err = createError('Validation failed', 400);
-        err.details = errorMessages;
-        return next(err);
+function validationMiddleware(schema, source = 'body') {
+    return (req, res, next) => {
+        const target = source === 'headers' ? { user: req.headers['user'], password: req.headers['password']} : req[source];
+        const result = schema.safeParse(target);
+        if(!result.success) {
+            const errorMessages = result.error.issues.map((issue) => issue.message);
+            const err = createError('Validation failed', 400);
+            err.details = errorMessages;
+            console.log('Validation Error || Logging Error:', errorMessages);
+            return next(err);
+        }
+        req.validatedData = result.data;
+        return next();
     }
-    if(!passwordResult.success) {
-        const errorMessages = passwordResult.error.issues.map((issue) => issue.message);
-        const err = createError('Validation failed', 400);
-        err.details = errorMessages;
-        return next(err);
-    }
-    const username = userResult.data;
-    const password = passwordResult.data;
+}
+
+function userAuth(req, res, next) {
+    const username = req.validatedData.user;
+    const password = req.validatedData.password;
 
     if(username != 'admin' || password != 'admin') {
         const err = createError('User not authorized', 401);
@@ -45,7 +43,15 @@ function userValidation(req, res, next) {
     return next();
 }
 
-function kidneyInputValidation(req, res, next) {
+function userSchema() {
+  return zod.object({
+    user: zod.string({ required_error: 'Username is missing' }).min(1),
+    password: zod.string({ required_error: 'Password is missing' }).min(1)
+  });
+}
+
+
+function kidneyShema() {
     const kidneySchema = zod.object( {
         noOfKidneys : zod.number('noOfKidneys is missing')
         .min(2, 'The noOfKidneys can not be less than 2')
@@ -55,20 +61,10 @@ function kidneyInputValidation(req, res, next) {
         .max(8, 'phValue should be between 4 and 8'))
         .length(2, 'phValue should have two values')
     });
-
-    const kidneyResult = kidneySchema.safeParse(req.body);
-    console.log(kidneyResult);
-    if(!kidneyResult.success) {
-        const errorMessages = kidneyResult.error.issues.map((issue) => issue.message);
-        const err = createError('Validation failed', 400);
-        err.details = errorMessages;
-        return next(err);
-    }
-
-    return next();
+    return kidneySchema;
 }
 
-function heartInputValidation(req, res, next) {
+function heartSchema() {
     const heartSchema = zod.object( {
         bpm : zod.number('bpm input is missing')
         .min(60, 'The bpm input should be between 60 and 100')
@@ -77,21 +73,12 @@ function heartInputValidation(req, res, next) {
         .min(30, 'The heartRate should be between 30 and 100')
         .max(100, 'The heartRate should be between 30 and 100')
     });
-    const heartResult = heartSchema.safeParse(req.body);
-    console.log(heartResult);
-    if(!heartResult.success) {
-        const errorMessages = heartResult.error.issues.map((issue) => issue.message);
-        const err = createError('Validaton failed', 400);
-        err.details = errorMessages;
-        return next(err);
-    }
-    req.validatedHeartData = heartResult.data;
-    return next ();
+    return heartSchema;
 }
 
-app.use(userValidation);
+app.use(validationMiddleware(userSchema(), 'headers'), userAuth);
 
-app.post('/kidney', kidneyInputValidation, (req, res) => {
+app.post('/kidney', validationMiddleware(kidneyShema()), (req, res) => {
     const kidneyData = req.body;
     const noOfKidneys = kidneyData.noOfKidneys;
     const phValue = kidneyData.phValue;
@@ -102,8 +89,8 @@ app.post('/kidney', kidneyInputValidation, (req, res) => {
     });
 });
 
-app.post('/heart', heartInputValidation, (req, res) => {
-    const { bpm, heartRate } = req.validatedHeartData;
+app.post('/heart', validationMiddleware(heartSchema()), (req, res) => {
+    const { bpm, heartRate } = req.validatedData;
     if(bpm > 60 && bpm < 80) {
         if(heartRate > 60 && heartRate < 80) {
             return res.status(200).json( {

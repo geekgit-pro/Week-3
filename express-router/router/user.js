@@ -3,13 +3,11 @@ const router = express.Router();
 
 let users = [{ id: '1', name: 'user1' }, { id: '2', name: 'user2' }];
 
-// GET /users
-router.get('/', (req, res) => {
+router.route('/').
+get((req, res) => {
   res.json(users);
-});
-
-// POST /users
-router.post('/', (req, res) => {
+}).
+post((req, res) => {
   const { name } = req.body;
   const id = String(users.length + 1);
   const user = { id, name };
@@ -19,6 +17,7 @@ router.post('/', (req, res) => {
     details : users
   });
 });
+
 
 // GET /users/:id
 router.get('/:id', (req, res) => {
